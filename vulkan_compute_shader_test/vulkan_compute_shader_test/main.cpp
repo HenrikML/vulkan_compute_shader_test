@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <vector>
+#include <cassert>
 
 
 int main() {
@@ -30,11 +31,61 @@ int main() {
     instanceCreateInfo.enabledLayerCount = 1;
     instanceCreateInfo.ppEnabledLayerNames = &validationLayer;
 
-
     VkInstance instance;
     if (vkCreateInstance(&instanceCreateInfo, nullptr, &instance) != VK_SUCCESS) {
         throw std::runtime_error("RUNTIME ERROR: Failed to create instance");
     }
 
+    // Get physical device info
+    uint32_t deviceCount = 0;
+    vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+    if (deviceCount == 0) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to find physical device");
+    }
+    std::cout << "Physical device count: " << deviceCount << std::endl << std::endl;
+    std::vector<VkPhysicalDevice> physicalDeviceList(deviceCount);
+    vkEnumeratePhysicalDevices(instance, &deviceCount, physicalDeviceList.data());
+
+    VkPhysicalDeviceProperties deviceProperties;
+    VkPhysicalDevice physicalDevice;
+
+    int deviceNumber = 0;
+    std::cout << "Available devices: " << std::endl;
+    for (const auto& device : physicalDeviceList) {
+        vkGetPhysicalDeviceProperties(device, &deviceProperties);
+        std::cout << "   Device(" << deviceNumber << "): " << deviceProperties.deviceName << std::endl;
+    }
+
+    int selectedDevice = -1;
+    if (deviceCount > 1) {
+        std::cout << std::endl;
+        while (selectedDevice < 0 || selectedDevice >= deviceCount) {
+            std::cout << ">> Select device (0-" << deviceCount - 1 << "): ";
+            std::cin >> selectedDevice;
+            if (!std::cin.good()) {
+                std::cin.clear();
+                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                std::cout << "Must enter valid number" << std::endl;
+                selectedDevice = -1;
+            }
+            else if (selectedDevice < 0 || selectedDevice >= deviceCount) {
+                std::cout << "Must enter valid number" << std::endl;
+            }
+        }
+    }
+    else {
+        selectedDevice = 0;
+    }
+    std::cout << std::endl;
+
+    physicalDevice = physicalDeviceList[selectedDevice];
+    vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
+
+    if (physicalDevice == VK_NULL_HANDLE) {
+        throw std::runtime_error("RUNTIME ERROR: Invalid device (VK_NULL_HANDLE)");
+    }
+
+    std::cout << deviceProperties.deviceName << " (Device "<< selectedDevice <<") selected." << std::endl << std::endl;
+    
     return EXIT_SUCCESS;
 }
