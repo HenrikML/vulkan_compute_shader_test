@@ -7,29 +7,34 @@
 #include <mat4x4.hpp>
 
 #include <iostream>
+#include <vector>
+
 
 int main() {
-    glfwInit();
 
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window = glfwCreateWindow(800, 600, "Vulkan window", nullptr, nullptr);
+    // Create vulkan instance
+    VkApplicationInfo applicationInfo = {};
+    applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    applicationInfo.pNext = nullptr;
+    applicationInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+    applicationInfo.pEngineName = nullptr;
+    applicationInfo.engineVersion = VK_MAKE_VERSION(0, 0, 0);
+    applicationInfo.apiVersion = VK_API_VERSION_1_0;
 
-    uint32_t extensionCount = 0;
-    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+    const char* validationLayer = "VK_LAYER_KHRONOS_validation" ;
 
-    std::cout << extensionCount << " extensions supported\n";
+    VkInstanceCreateInfo instanceCreateInfo = {};
+    instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    instanceCreateInfo.pNext = nullptr;
+    instanceCreateInfo.pApplicationInfo = &applicationInfo;
+    instanceCreateInfo.enabledLayerCount = 1;
+    instanceCreateInfo.ppEnabledLayerNames = &validationLayer;
 
-    glm::mat4 matrix;
-    glm::vec4 vec;
-    auto test = matrix * vec;
 
-    while (!glfwWindowShouldClose(window)) {
-        glfwPollEvents();
+    VkInstance instance;
+    if (vkCreateInstance(&instanceCreateInfo, nullptr, &instance) != VK_SUCCESS) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to create instance");
     }
-
-    glfwDestroyWindow(window);
-
-    glfwTerminate();
 
     return EXIT_SUCCESS;
 }
