@@ -85,7 +85,32 @@ int main() {
         throw std::runtime_error("RUNTIME ERROR: Invalid device (VK_NULL_HANDLE)");
     }
 
-    std::cout << deviceProperties.deviceName << " (Device "<< selectedDevice <<") selected." << std::endl << std::endl;
+    // Print physical device info
+    std::cout << deviceProperties.deviceName << " (Device "<< selectedDevice <<") selected." << std::endl;
+    std::cout << "    Vulkan version: " << VK_VERSION_MAJOR(deviceProperties.apiVersion) <<
+        "." << VK_VERSION_MINOR(deviceProperties.apiVersion) <<
+        "." << VK_VERSION_PATCH(deviceProperties.apiVersion) << std::endl;
+    std::cout << "    Max compute shared memory size: " << deviceProperties.limits.maxComputeSharedMemorySize / 1024 << "KB" << std::endl << std::endl;
+
+    // Get compute queue index
+    uint32_t queueFamilyPropCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyPropCount, nullptr);
+
+    std::cout << "Queue family prop count: " << queueFamilyPropCount << std::endl;
+    std::vector<VkQueueFamilyProperties> queueFamilyPropVec(queueFamilyPropCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyPropCount, queueFamilyPropVec.data());
+
+    uint32_t computeQueueIndex = 0;
+    for (const auto& prop : queueFamilyPropVec) {
+        if (prop.queueFlags & VK_QUEUE_COMPUTE_BIT) {
+            break;
+        }
+        ++computeQueueIndex;
+    }
+
+    std::cout << "Compute queue family index: " << computeQueueIndex << std::endl << std::endl;
+
+    vkDestroyInstance(instance, nullptr);
     
     return EXIT_SUCCESS;
 }
