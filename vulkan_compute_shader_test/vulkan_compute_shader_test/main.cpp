@@ -132,8 +132,93 @@ int main() {
         throw std::runtime_error("RUNTIME ERROR: Failed to create vulkan device");
     }
 
+    // Create input/output buffers
+    const uint32_t elements = 10;
+    const uint32_t bufferSize = elements * sizeof(uint32_t);
+
+    VkBufferCreateInfo bufferCreateInfo = {};
+    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferCreateInfo.pNext = nullptr;
+    bufferCreateInfo.size = bufferSize;
+    bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    bufferCreateInfo.queueFamilyIndexCount = 1;
+    bufferCreateInfo.pQueueFamilyIndices = &computeQueueIndex;
+
+    VkBuffer inBuffer;
+    VkBuffer outBuffer;
+
+    if (vkCreateBuffer(vulkanDevice, &bufferCreateInfo, nullptr, &inBuffer) != VK_SUCCESS) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to create input buffer");
+    }
+    if (vkCreateBuffer(vulkanDevice, &bufferCreateInfo, nullptr, &outBuffer) != VK_SUCCESS) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to create output buffer");
+    }
+
+    // Allocate input/output buffer memory
+    VkMemoryRequirements inBufferMemoryReq;
+    VkMemoryRequirements outBufferMemoryReq;
+    vkGetBufferMemoryRequirements(vulkanDevice, inBuffer, &inBufferMemoryReq);
+    vkGetBufferMemoryRequirements(vulkanDevice, inBuffer, &outBufferMemoryReq);
+
+    VkPhysicalDeviceMemoryProperties physicalDeviceMemProps;
+    vkGetPhysicalDeviceMemoryProperties(physicalDevice, &physicalDeviceMemProps);
+
+    uint32_t memoryTypeIndex = uint32_t(~0);
+    VkDeviceSize memoryHeapSize = uint32_t(~0);
+    for (uint32_t i = 0; i < physicalDeviceMemProps.memoryTypeCount; ++i) {
+        VkMemoryType memoryType = physicalDeviceMemProps.memoryTypes[i];
+        if ((memoryType.propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) &&
+            (memoryType.propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
+            memoryTypeIndex = i;
+            memoryHeapSize = physicalDeviceMemProps.memoryHeaps[i].size;
+            break;
+        }
+    }
+
+    std::cout << "Memory type index: " << memoryTypeIndex << std::endl;
+    std::cout << "Memory heap size: " << memoryHeapSize << std::endl << std::endl;
+
+
+    VkMemoryAllocateInfo inBufferMemoryAllocateInfo = {};
+    inBufferMemoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    inBufferMemoryAllocateInfo.memoryTypeIndex = memoryTypeIndex;
+    inBufferMemoryAllocateInfo.allocationSize = inBufferMemoryReq.size;
+
+    VkMemoryAllocateInfo outBufferMemoryAllocateInfo = {};
+    outBufferMemoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    outBufferMemoryAllocateInfo.memoryTypeIndex = memoryTypeIndex;
+    outBufferMemoryAllocateInfo.allocationSize = outBufferMemoryReq.size;
+
+    VkDeviceMemory inBufferMemory;
+    VkDeviceMemory outBufferMemory;
+
+    if (vkAllocateMemory(vulkanDevice, &inBufferMemoryAllocateInfo, nullptr, &inBufferMemory) != VK_SUCCESS) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to allocate input buffer memory");
+    }
+    if (vkAllocateMemory(vulkanDevice, &outBufferMemoryAllocateInfo, nullptr, &outBufferMemory) != VK_SUCCESS) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to allocate output buffer memory");
+    }
+
+    // Map data to input buffer
+    std::vector<uint32_t> dataVec(elements);
+
+    for (uint32_t i = 0; i < elements; ++i) {
+        dataVec[i] = i;
+    }
+
+    void* data;
+    vkMapMemory(vulkanDevice, inBufferMemory, 0, bufferSize, 0, &data);
+    memcpy(data, dataVec.data(), bufferSize);
+    vkUnmapMemory(vulkanDevice, inBufferMemory);
+
+    // Cleanup
+    vkFreeMemory(vulkanDevice, inBufferMemory, nullptr);
+    vkFreeMemory(vulkanDevice, outBufferMemory, nullptr);
+    vkDestroyBuffer(vulkanDevice, inBuffer, nullptr);
+    vkDestroyBuffer(vulkanDevice, outBuffer, nullptr);
     vkDestroyDevice(vulkanDevice, nullptr);
     vkDestroyInstance(instance, nullptr);
-    
+
     return EXIT_SUCCESS;
 }
