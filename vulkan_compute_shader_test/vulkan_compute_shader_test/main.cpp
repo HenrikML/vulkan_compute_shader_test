@@ -102,7 +102,7 @@ int main() {
 
     uint32_t computeQueueIndex = 0;
     for (const auto& prop : queueFamilyPropVec) {
-        if (prop.queueFlags & VK_QUEUE_COMPUTE_BIT) {
+        if (prop.queueCount > 0 && prop.queueFlags & VK_QUEUE_COMPUTE_BIT) {
             break;
         }
         ++computeQueueIndex;
@@ -110,6 +110,29 @@ int main() {
 
     std::cout << "Compute queue family index: " << computeQueueIndex << std::endl << std::endl;
 
+    // Create vulkan device
+    VkDevice vulkanDevice = {};
+    std::vector<VkDeviceQueueCreateInfo> deviceQueueCreateInfoVec;
+
+    float queuePriority = 1.0f;
+    VkDeviceQueueCreateInfo deviceQueueCreateInfo = {};
+    deviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    deviceQueueCreateInfo.queueFamilyIndex = computeQueueIndex;
+    deviceQueueCreateInfo.queueCount = 1;
+    deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
+    deviceQueueCreateInfoVec.push_back(deviceQueueCreateInfo);
+
+    VkDeviceCreateInfo deviceCreateInfo = {};
+    deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    deviceCreateInfo.queueCreateInfoCount = 1;
+    deviceCreateInfo.pQueueCreateInfos = deviceQueueCreateInfoVec.data();
+    deviceCreateInfo.enabledLayerCount = 0;
+
+    if (vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &vulkanDevice) != VK_SUCCESS) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to create vulkan device");
+    }
+
+    vkDestroyDevice(vulkanDevice, nullptr);
     vkDestroyInstance(instance, nullptr);
     
     return EXIT_SUCCESS;
