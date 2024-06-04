@@ -306,12 +306,163 @@ int main() {
         throw std::runtime_error("RUNTIME ERROR: Failed to create compute pipeline");
     }
     
+    // Create descriptor pool and allocate descriptor set
+    VkDescriptorPoolSize descriptorPoolSize = {};
+    descriptorPoolSize.descriptorCount = 2;
+    descriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+
+    VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
+    descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    descriptorPoolCreateInfo.pPoolSizes = &descriptorPoolSize;
+    descriptorPoolCreateInfo.poolSizeCount = 1;
+    descriptorPoolCreateInfo.maxSets = 1;
+
+    VkDescriptorPool descriptorPool;
+    if (vkCreateDescriptorPool(vulkanDevice, &descriptorPoolCreateInfo, nullptr, &descriptorPool)) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to create descriptor pool");
+    }
+
+    VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+    descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    descriptorSetAllocateInfo.descriptorPool = descriptorPool;
+    descriptorSetAllocateInfo.descriptorSetCount = 1;
+    descriptorSetAllocateInfo.pSetLayouts = &descriptorSetLayout;
+
+    std::vector<VkDescriptorSet> descriptorSetVec(1);
+    if (vkAllocateDescriptorSets(vulkanDevice, &descriptorSetAllocateInfo, descriptorSetVec.data()) != VK_SUCCESS) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to allocate descriptor sets");
+    }
+
+    VkDescriptorSet descriptorSet = descriptorSetVec.front();
+
+    VkDescriptorBufferInfo inBufferInfo = {};
+    inBufferInfo.buffer = inBuffer;
+    inBufferInfo.offset = 0;
+    inBufferInfo.range = elements * sizeof(uint32_t);
+
+    VkDescriptorBufferInfo outBufferInfo = {};
+    outBufferInfo.buffer = outBuffer;
+    outBufferInfo.offset = 0;
+    outBufferInfo.range = elements * sizeof(uint32_t);
+    
+    VkWriteDescriptorSet writeInBufferDescriptorSet = {};
+    writeInBufferDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeInBufferDescriptorSet.dstBinding = 0;
+    writeInBufferDescriptorSet.dstArrayElement = 0;
+    writeInBufferDescriptorSet.descriptorCount = 1;
+    writeInBufferDescriptorSet.dstSet = descriptorSet;
+    writeInBufferDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writeInBufferDescriptorSet.pBufferInfo = &inBufferInfo;
+
+    VkWriteDescriptorSet writeOutBufferDescriptorSet = {};
+    writeOutBufferDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeOutBufferDescriptorSet.dstBinding = 1;
+    writeOutBufferDescriptorSet.dstArrayElement = 0;
+    writeOutBufferDescriptorSet.descriptorCount = 1;
+    writeOutBufferDescriptorSet.dstSet = descriptorSet;
+    writeOutBufferDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writeOutBufferDescriptorSet.pBufferInfo = &outBufferInfo;
+
+    const std::vector<VkWriteDescriptorSet> writeDescriptorSetVec = { writeInBufferDescriptorSet, writeOutBufferDescriptorSet };
+
+    vkUpdateDescriptorSets(vulkanDevice, 2, writeDescriptorSetVec.data(), 0, nullptr);
+
+    // Create command pool
+    VkCommandPoolCreateInfo cmdPoolCreateInfo = {};
+    cmdPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    cmdPoolCreateInfo.queueFamilyIndex = computeQueueIndex;
+
+    VkCommandPool commandPool;
+    if (vkCreateCommandPool(vulkanDevice, &cmdPoolCreateInfo, nullptr, &commandPool) != VK_SUCCESS) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to create command pool");
+    }
+
+    // Allocate command buffers
+    uint32_t cmdBufferCount = 1;
+    VkCommandBufferAllocateInfo cmdBufferAllocateInfo = {};
+    cmdBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cmdBufferAllocateInfo.commandPool = commandPool;
+    cmdBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cmdBufferAllocateInfo.commandBufferCount = cmdBufferCount;
+
+    std::vector<VkCommandBuffer> cmdBufferVec(cmdBufferCount);
+    if (vkAllocateCommandBuffers(vulkanDevice, &cmdBufferAllocateInfo, cmdBufferVec.data()) != VK_SUCCESS) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to allocate command buffers");
+    }
+    VkCommandBuffer commandBuffer = cmdBufferVec.front();
+
+    // Dispatch commands
+    VkCommandBufferBeginInfo cmdBufferBeginInfo = {};
+    cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    cmdBufferBeginInfo.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    if (vkBeginCommandBuffer(commandBuffer, &cmdBufferBeginInfo) != VK_SUCCESS) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to begin command buffer");
+    }
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+    vkCmdDispatch(commandBuffer, elements, 1, 1);
+    vkEndCommandBuffer(commandBuffer);
+
+    VkQueue queue;
+    vkGetDeviceQueue(vulkanDevice, computeQueueIndex, 0, &queue);
+
+    VkFenceCreateInfo fenceCreateInfo = {};
+    fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+
+    VkFence fence;
+    if (vkCreateFence(vulkanDevice, &fenceCreateInfo, nullptr, &fence) != VK_SUCCESS) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to create fence");
+    }
+
+    VkSubmitInfo submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount = 0;
+    submitInfo.pWaitSemaphores = nullptr;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    if (vkQueueSubmit(queue, 1, &submitInfo, fence) != VK_SUCCESS) {
+        throw std::runtime_error("RUNTIME ERROR: Failed submit command buffer to queue");
+    }
+
+    vkWaitForFences(vulkanDevice, 1, &fence, true, UINT64_MAX);
+
+    // Display results
+    std::vector<uint32_t> dataInVec(elements);
+    void* dataIn;
+    vkMapMemory(vulkanDevice, inBufferMemory, 0, bufferSize, 0, &dataIn);
+    memcpy(dataInVec.data(), dataIn, bufferSize);
+    vkUnmapMemory(vulkanDevice, inBufferMemory);
+
+    std::cout << "Input buffer: ";
+    for (uint32_t i = 0; i < elements; ++i) {
+        std::cout << dataInVec[i] << " ";
+    }
+    std::cout << std::endl;
+
+    std::vector<uint32_t> dataOutVec(elements);
+    void* dataOut;
+    vkMapMemory(vulkanDevice, outBufferMemory, 0, bufferSize, 0, &dataOut);
+    memcpy(dataOutVec.data(), dataOut, bufferSize);
+    vkUnmapMemory(vulkanDevice, outBufferMemory);
+
+    std::cout << "Output buffer: ";
+    for (uint32_t i = 0; i < elements; ++i) {
+        std::cout << dataOutVec[i] << " ";
+    }
+    std::cout << std::endl;
+
     // Cleanup
+    vkResetCommandPool(vulkanDevice, commandPool, 0);
+    vkDestroyFence(vulkanDevice, fence, nullptr);
     vkDestroyPipeline(vulkanDevice, computePipeline, nullptr);
     vkDestroyPipelineCache(vulkanDevice, pipelineCache, nullptr);
     vkDestroyPipelineLayout(vulkanDevice, pipelineLayout, nullptr);
     vkDestroyDescriptorSetLayout(vulkanDevice, descriptorSetLayout, nullptr);
     vkDestroyShaderModule(vulkanDevice, compShaderModule, nullptr);
+    vkDestroyDescriptorPool(vulkanDevice, descriptorPool, nullptr);
+    vkDestroyCommandPool(vulkanDevice, commandPool, nullptr);
     vkFreeMemory(vulkanDevice, inBufferMemory, nullptr);
     vkFreeMemory(vulkanDevice, outBufferMemory, nullptr);
     vkDestroyBuffer(vulkanDevice, inBuffer, nullptr);
