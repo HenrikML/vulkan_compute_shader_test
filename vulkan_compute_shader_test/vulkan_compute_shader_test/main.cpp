@@ -9,7 +9,24 @@
 #include <iostream>
 #include <vector>
 #include <cassert>
+#include <fstream>
 
+
+std::vector<char> readFile(const std::string& filepath) {
+    std::ifstream file{ filepath, std::ios::ate | std::ios::binary };
+
+    if (!file.is_open()) {
+        throw std::runtime_error("failed to open file: " + filepath);
+    }
+
+    size_t fileSize = static_cast<size_t>(file.tellg());
+    std::vector<char> buffer(fileSize);
+    file.seekg(0);
+    file.read(buffer.data(), fileSize);
+    file.close();
+
+    return buffer;
+}
 
 int main() {
 
@@ -211,6 +228,26 @@ int main() {
     vkMapMemory(vulkanDevice, inBufferMemory, 0, bufferSize, 0, &data);
     memcpy(data, dataVec.data(), bufferSize);
     vkUnmapMemory(vulkanDevice, inBufferMemory);
+
+    if (vkBindBufferMemory(vulkanDevice, inBuffer, inBufferMemory, 0) != VK_SUCCESS) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to bind input buffer");
+    }
+    if (vkBindBufferMemory(vulkanDevice, outBuffer, outBufferMemory, 0) != VK_SUCCESS) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to bind output buffer");
+    }
+
+    // Create shader module
+    auto compShader = readFile("compute_shader.comp.spv");
+
+    VkShaderModuleCreateInfo shaderModuleCreateInfo{};
+    shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    shaderModuleCreateInfo.codeSize = compShader.size();
+    shaderModuleCreateInfo.pCode = reinterpret_cast<const uint32_t*>(compShader.data());
+
+    VkShaderModule compShaderModule;
+    if (vkCreateShaderModule(vulkanDevice, &shaderModuleCreateInfo, nullptr, &compShaderModule) != VK_SUCCESS) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to create shader module");
+    }
 
     // Cleanup
     vkFreeMemory(vulkanDevice, inBufferMemory, nullptr);
