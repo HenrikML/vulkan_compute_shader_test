@@ -249,7 +249,32 @@ int main() {
         throw std::runtime_error("RUNTIME ERROR: Failed to create shader module");
     }
 
+
+    // Create descriptor set layout
+    std::vector<VkDescriptorSetLayoutBinding> descriptorSetLayoutBindings;
+
+    for (uint32_t i = 0; i < 1; ++i) {
+        VkDescriptorSetLayoutBinding binding{};
+        binding.binding = i;
+        binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        binding.descriptorCount = 1;
+        binding.stageFlags |= VK_SHADER_STAGE_COMPUTE_BIT;
+        descriptorSetLayoutBindings.push_back(binding);
+    }
+
+    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
+    descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptorSetLayoutCreateInfo.bindingCount = descriptorSetLayoutBindings.size();
+    descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
+
+    VkDescriptorSetLayout descriptorSetLayout;
+    if (vkCreateDescriptorSetLayout(vulkanDevice, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to create descriptor set layout");
+    }
+
     // Cleanup
+    vkDestroyDescriptorSetLayout(vulkanDevice, descriptorSetLayout, nullptr);
+    vkDestroyShaderModule(vulkanDevice, compShaderModule, nullptr);
     vkFreeMemory(vulkanDevice, inBufferMemory, nullptr);
     vkFreeMemory(vulkanDevice, outBufferMemory, nullptr);
     vkDestroyBuffer(vulkanDevice, inBuffer, nullptr);
