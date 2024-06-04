@@ -251,28 +251,65 @@ int main() {
 
 
     // Create descriptor set layout
-    std::vector<VkDescriptorSetLayoutBinding> descriptorSetLayoutBindings;
+    VkDescriptorSetLayoutBinding descriptorSetLayoutBindings[2];
 
-    for (uint32_t i = 0; i < 1; ++i) {
-        VkDescriptorSetLayoutBinding binding{};
+    for (uint32_t i = 0; i < 2; i++) {
+        VkDescriptorSetLayoutBinding binding = {};
         binding.binding = i;
         binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         binding.descriptorCount = 1;
         binding.stageFlags |= VK_SHADER_STAGE_COMPUTE_BIT;
-        descriptorSetLayoutBindings.push_back(binding);
+        descriptorSetLayoutBindings[i] = binding;
     }
 
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
     descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    descriptorSetLayoutCreateInfo.bindingCount = descriptorSetLayoutBindings.size();
-    descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
+    descriptorSetLayoutCreateInfo.bindingCount = 2;
+    descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings;
 
     VkDescriptorSetLayout descriptorSetLayout;
     if (vkCreateDescriptorSetLayout(vulkanDevice, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
         throw std::runtime_error("RUNTIME ERROR: Failed to create descriptor set layout");
     }
+    
+    // Create compute pipeline
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
+    pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
+    pipelineLayoutCreateInfo.setLayoutCount = 1;
+    
+    VkPipelineLayout pipelineLayout;
+    if(vkCreatePipelineLayout(vulkanDevice, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to create pipeline layout");
+    }
+    
+    VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
+    pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+    VkPipelineCache pipelineCache;
+    if (vkCreatePipelineCache(vulkanDevice, &pipelineCacheCreateInfo, nullptr, &pipelineCache)) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to create pipeline cache");
+    }
+    
+    VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo = {};
+    pipelineShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    pipelineShaderStageCreateInfo.pName = "main";
+    pipelineShaderStageCreateInfo.module = compShaderModule;
+    pipelineShaderStageCreateInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
 
+    VkComputePipelineCreateInfo computePipelineCreateInfo = {};
+    computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    computePipelineCreateInfo.layout = pipelineLayout;
+    computePipelineCreateInfo.stage = pipelineShaderStageCreateInfo;
+
+    VkPipeline computePipeline;
+    if (vkCreateComputePipelines(vulkanDevice, pipelineCache, 1, &computePipelineCreateInfo, nullptr, &computePipeline)) {
+        throw std::runtime_error("RUNTIME ERROR: Failed to create compute pipeline");
+    }
+    
     // Cleanup
+    vkDestroyPipeline(vulkanDevice, computePipeline, nullptr);
+    vkDestroyPipelineCache(vulkanDevice, pipelineCache, nullptr);
+    vkDestroyPipelineLayout(vulkanDevice, pipelineLayout, nullptr);
     vkDestroyDescriptorSetLayout(vulkanDevice, descriptorSetLayout, nullptr);
     vkDestroyShaderModule(vulkanDevice, compShaderModule, nullptr);
     vkFreeMemory(vulkanDevice, inBufferMemory, nullptr);
